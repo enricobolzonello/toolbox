@@ -3,6 +3,7 @@ import os
 import urllib.request
 import argparse
 from parsing import bfs
+import sys
 
 TEMP_FILE = os.path.dirname(__file__) + '/cards.txt'
 
@@ -29,12 +30,31 @@ def invoke(action, **params):
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="Obsidian->Anki flashcards",
-        description="Starting from a base note, it parses all connected obsidian notes and extracts flashcards which are then exported to Anki",
+        prog="obs2anki",
+        description="Starting from a base note, it parses all connected Obsidian notes "
+                    "and extracts flashcards which are then exported to Anki.",
+        usage="%(prog)s <filename> <vault_path>"
     )
-    parser.add_argument("filename")
-    parser.add_argument("vault_path")
+
+    parser.add_argument(
+        "filename",
+        help="File name of the starting note (with or without the .md extension)"
+    )
+
+    parser.add_argument(
+        "vault_path",
+        help="Path to the root of the Obsidian vault"
+    )
+
     args = parser.parse_args()
+
+    if not args.filename.endswith(".md"):
+        args.filename += ".md"
+
+    args.vault_path = os.path.expanduser(args.vault_path)
+    if not os.path.isdir(args.vault_path):
+        print(f"❌ Error: The path '{args.vault_path}' is not a valid directory.")
+        sys.exit(1)
 
     cards = bfs(args.filename, args.vault_path)
     if not cards:
