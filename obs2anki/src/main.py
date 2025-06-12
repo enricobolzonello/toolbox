@@ -80,7 +80,7 @@ def main():
     else:
         print("✅ Found flashcards:")
         for q, a in cards:
-            print(f"Q: {q.strip()} \nA: {a.strip()}\n")
+            print(f"Q: {q.strip()} \nA: {a.strip()}\n\n")
 
     deck_names = invoke('deckNames')
     existing_notes = set()
