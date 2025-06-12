@@ -4,8 +4,25 @@ import urllib.request
 import argparse
 from parsing import bfs
 import sys
+import tempfile
+import time
+import glob
 
-TEMP_FILE = os.path.dirname(__file__) + '/cards.txt'
+TEMP_DIR = tempfile.gettempdir()
+TEMP_FILE = os.path.join(TEMP_DIR, "obs2anki_cards.txt")
+
+def cleanup_old_temp_files(temp_dir, pattern="obs2anki_cards_*.txt", max_age_seconds=300):
+    now = time.time()
+    for filepath in glob.glob(os.path.join(temp_dir, pattern)):
+        try:
+            mtime = os.path.getmtime(filepath)
+            age = now - mtime
+            if age > max_age_seconds:
+                os.remove(filepath)
+                print(f"🗑️ Removed old temp file: {filepath}")
+        except Exception as e:
+            print(f"⚠️ Failed to remove {filepath}: {e}")
+
 
 def request(action, **params):
     return {"action": action, "params": params, "version": 6}
@@ -29,6 +46,7 @@ def invoke(action, **params):
     return response["result"]
 
 def main():
+    cleanup_old_temp_files(TEMP_DIR)
     parser = argparse.ArgumentParser(
         prog="obs2anki",
         description="Starting from a base note, it parses all connected Obsidian notes "
@@ -108,7 +126,6 @@ def main():
         invoke('guiImportFile', path=TEMP_FILE)
     else:
         print("⚠️  Skipping empty file.")
-    os.remove(TEMP_FILE)
 
 if __name__ == "__main__":
     main()
