@@ -1,0 +1,15 @@
+[project]
+name = "obs2anki"
+version = "0.1.0"
+description = "Command-line tool to import flashcards from Obsidian to Anki"
+authors = [{name = "Enrico Bolzonello", email = "enribolzonello@gmail.com"}]
+readme = ""
+requires-python = ">=3.7"
+dependencies = []
+
+[project.scripts]
+obs2anki = "main:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
