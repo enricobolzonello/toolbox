@@ -49,14 +49,15 @@ def main():
     cleanup_old_temp_files(TEMP_DIR)
     parser = argparse.ArgumentParser(
         prog="obs2anki",
-        description="Starting from a base note, it parses all connected Obsidian notes "
+        description="Starting from a base note or a folder, it parses connected Obsidian notes "
                     "and extracts flashcards which are then exported to Anki.",
-        usage="%(prog)s <filename> <vault_path>"
+        usage="%(prog)s <filename_or_directory> <vault_path>"
     )
 
     parser.add_argument(
         "filename",
-        help="File name of the starting note (with or without the .md extension)"
+        help="File name of the starting note (with or without the .md extension), "
+             "or a folder containing multiple notes"
     )
 
     parser.add_argument(
@@ -66,44 +67,57 @@ def main():
 
     args = parser.parse_args()
 
-    if not args.filename.endswith(".md"):
-        args.filename += ".md"
-
     args.vault_path = os.path.expanduser(args.vault_path)
     if not os.path.isdir(args.vault_path):
         print(f"❌ Error: The path '{args.vault_path}' is not a valid directory.")
         sys.exit(1)
 
-    cards = bfs(args.filename, args.vault_path)
-    if not cards:
-        print("⚠️  No flashcards found.")
-    else:
-        print("✅ Found flashcards:")
-        for q, a in cards:
-            print(f"Q: {q.strip()} \nA: {a.strip()}\n\n")
+    flashcard_pairs = []
 
+    target_path = os.path.join(args.vault_path, args.filename[:-1] if args.filename[-1] == "/" else args.filename)
+    if os.path.isdir(target_path):
+        md_files = [f for f in os.listdir(target_path) if f.endswith(".md")]
+        print(f"📁 Processing {len(md_files)} files in directory '{args.filename}'...")
+        for md_file in md_files:
+            cards = bfs(md_file, args.vault_path)
+            flashcard_pairs.extend(cards)
+    else:
+        if not args.filename.endswith(".md"):
+            args.filename += ".md"
+        flashcard_pairs = bfs(args.filename, args.vault_path)
+
+    # remove duplicates
+    flashcard_pairs = list(set(flashcard_pairs))
+
+    if not flashcard_pairs:
+        print("⚠️  No flashcards found.")
+        return
+
+    print(f"✅ Found {len(flashcard_pairs)} flashcards:")
+    for q, a in flashcard_pairs:
+        print(f"Q: {q.strip()} \nA: {a.strip()}\n\n")
+
+    deck_name = args.filename if not os.path.isdir(target_path) else os.path.basename(target_path)
     deck_names = invoke('deckNames')
     existing_notes = set()
-    if args.filename not in deck_names:
-        invoke('createDeck', deck=args.filename)
-        print(f"✅  Creating new deck {args.filename}.")
+
+    if deck_name not in deck_names:
+        invoke('createDeck', deck=deck_name)
+        print(f"✅  Creating new deck {deck_name}.")
     else:
-        result = invoke('notesInfo', query=f"deck:{args.filename}")
+        result = invoke('notesInfo', query=f"deck:{deck_name}")
         for existing_note in result:
             question = existing_note["fields"]["Front"]["value"]
             answer = existing_note["fields"]["Back"]["value"]
+            note_id = existing_note["noteId"]
 
-            for q, a in cards:
-                note_id = existing_note["noteId"]
-                
-                if q==question and a==answer:
+            for q, a in flashcard_pairs:
+                if q == question and a == answer:
                     existing_notes.add((q, a))
                 elif q == question or a == answer:
                     new_front = question if q != question else q
                     new_back = answer if a != answer else a
-
                     print(f"⚠️  Updating note with new front {new_front} and back {new_back}.")
-                    
                     invoke("updateNoteFields", note={
                         "id": note_id,
                         "fields": {
@@ -113,19 +127,20 @@ def main():
                     })
                     existing_notes.add((q, a))
 
-
-    with open(TEMP_FILE, 'w') as f:   
-        f.write(f"#deck:{args.filename}\n")
+    with open(TEMP_FILE, 'w') as f:
+        f.write(f"#deck:{deck_name}\n")
         count = 0
-        for q,a in cards:
-            if (q,a) in existing_notes:
+        for q, a in flashcard_pairs:
+            if (q, a) in existing_notes:
                 continue
             f.write(f"{q};{a}\n")
             count += 1
+
     if count > 0:
         invoke('guiImportFile', path=TEMP_FILE)
     else:
         print("⚠️  Skipping empty file.")
+
 
 if __name__ == "__main__":
     main()
